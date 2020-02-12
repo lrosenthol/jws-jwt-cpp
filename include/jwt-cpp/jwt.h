@@ -1122,17 +1122,18 @@ namespace jwt {
 		 * Constructor 
 		 * Parses a given token
 		 * \param token The token to parse
+         * \param data Provide the payload data to use (in the case where it isn't present, aka detached)
 		 * \throws std::invalid_argument Token is not in correct format
 		 * \throws std::runtime_error Base64 decoding failed or invalid json
 		 */
-		explicit decoded_jwt(const std::string& token)
+		explicit decoded_jwt(const std::string& token, const std::string& data="")
 			: token(token)
 		{
 			auto hdr_end = token.find('.');
 			if (hdr_end == std::string::npos)
 				throw std::invalid_argument("invalid token supplied");
 			auto payload_end = token.find('.', hdr_end + 1);
-			if (payload_end == std::string::npos)
+            if (payload_end == std::string::npos)   // NOTE: for detached, this won't throw, just be empty!
 				throw std::invalid_argument("invalid token supplied");
 			header = header_base64 = token.substr(0, hdr_end);
 			payload = payload_base64 = token.substr(hdr_end + 1, payload_end - hdr_end - 1);
@@ -1174,14 +1175,34 @@ namespace jwt {
 			payload = base::decode<alphabet::base64url>(payload);
 			signature = base::decode<alphabet::base64url>(signature);
 
+            // this will happen for a detached payload
+            // in which case we use the provided data (encoding it as necessary)
+            // of course, if that is empty - THROW!
+            if (payload.length()==0 && payload_base64.length()==0) {
+                if (data.length() == 0)
+                    throw std::invalid_argument("invalid token supplied");
+
+                auto encode = [](const std::string& data) {
+                    auto base = base::encode<alphabet::base64url>(data);
+                    auto pos = base.find(alphabet::base64url::fill());
+                    base = base.substr(0, pos);
+                    return base;
+                };
+
+                payload = data;
+                payload_base64 = encode(payload);
+            }
+
 			auto parse_claims = [](const std::string& str) {
 				std::unordered_map<std::string, claim> res;
-				picojson::value val;
-				if (!picojson::parse(val, str).empty())
-					throw std::runtime_error("Invalid json");
+                
+                if ( str[0]=='{' ) {    // only try to parse it, if it's JSON
+					picojson::value val;
+					if (!picojson::parse(val, str).empty())
+						throw std::runtime_error("Invalid json");
 
-				for (auto& e : val.get<picojson::object>()) { res.insert({ e.first, claim(e.second) }); }
-
+					for (auto& e : val.get<picojson::object>()) { res.insert({ e.first, claim(e.second) }); }
+                }
 				return res;
 			};
 
@@ -1329,10 +1350,12 @@ namespace jwt {
 		/**
 		 * Sign token and return result
 		 * \param algo Instance of an algorithm to sign the token with
+         * \param data Provided data for the payload (instead of the JSON)
+         * \param detached Include the payload in the token or not (default is to do so)
 		 * \return Final token as a string
 		 */
 		template<typename T>
-		std::string sign(const T& algo) const {
+        std::string sign(const T& algo, const std::string& data="", bool detached=false) const {
 			picojson::object obj_header;
 			obj_header["alg"] = picojson::value(algo.name());
 			for (auto& e : header_claims) {
@@ -1351,11 +1374,17 @@ namespace jwt {
 			};
 
 			std::string header = encode(picojson::value(obj_header).serialize());
-			std::string payload = encode(picojson::value(obj_payload).serialize());
+            std::string payload = encode(data.length() ? data : picojson::value(obj_payload).serialize());
 
-			std::string token = header + "." + payload;
+            std::string signMe = header + "." + payload; // this is what we are actually going to sign
+            std::string sig = encode(algo.sign(signMe));
 
-			return token + "." + encode(algo.sign(token));
+            std::string token;
+            if (detached)
+                token = header + ".." + sig;
+            else
+                token = header + "." + payload + "." + sig;
+            return token;
 		}
 	};
 
@@ -1588,12 +1617,13 @@ namespace jwt {
 	/**
 	 * Decode a token
 	 * \param token Token to decode
+     * \param data Provide the payload data to use (in the case where it isn't present, aka detached)
 	 * \return Decoded token
 	 * \throws std::invalid_argument Token is not in correct format
 	 * \throws std::runtime_error Base64 decoding failed or invalid json
 	 */
     inline
-	decoded_jwt decode(const std::string& token) {
-		return decoded_jwt(token);
+	decoded_jwt decode(const std::string& token, const std::string& data="") {
+		return decoded_jwt(token, data);
 	}
 }
