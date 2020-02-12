@@ -2,7 +2,14 @@
 
 [![Codacy Badge](https://api.codacy.com/project/badge/Grade/5f7055e294744901991fd0a1620b231d)](https://app.codacy.com/app/Thalhammer/jwt-cpp?utm_source=github.com&utm_medium=referral&utm_content=Thalhammer/jwt-cpp&utm_campaign=Badge_Grade_Settings)
 
-A header only library for creating and validating json web tokens in c++.
+A header only library for creating and validating json web signatures and tokens in c++.
+
+## Changes in this fork
+
+### Support for creating JSON Web Signatures
+JSON Web Signatures can be created in [JWS Compact Serialization](https://tools.ietf.org/html/rfc7515#section-7.1). The data payload for a JWS can be either JSON or any arbitrary string of bytes.
+
+JWS's can be created either with inline or [detached content](https://tools.ietf.org/html/rfc7515#appendix-F).
 
 ## Signature algorithms
 As of version 0.2.0 jwt-cpp supports all algorithms defined by the spec. The modular design of jwt-cpp allows one to add additional algorithms without any problems. If you need any feel free to open a pull request.
@@ -65,7 +72,7 @@ auto token = jwt::create()
 ```
 
 ## Contributing
-If you have an improvement or found a bug feel free to [open an issue](https://github.com/Thalhammer/jwt-cpp/issues/new) or add the change and create a pull request. If you file a bug please make sure to include as much information about your environment (compiler version, etc.) as possible to help reproduce the issue. If you add a new feature please make sure to also include test cases for it.
+If you have an improvement or found a bug feel free to [open an issue](https://github.com/lrosenthol/jws-jwt-cpp/issues/new) or add the change and create a pull request. If you file a bug please make sure to include as much information about your environment (compiler version, etc.) as possible to help reproduce the issue. If you add a new feature please make sure to also include test cases for it.
 
 ## Dependencies
 In order to use jwt-cpp you need the following tools.
