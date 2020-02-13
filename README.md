@@ -11,6 +11,10 @@ JSON Web Signatures can be created in [JWS Compact Serialization](https://tools.
 
 JWS's can be created either with inline or [detached content](https://tools.ietf.org/html/rfc7515#appendix-F).
 
+### New Methods on jwt::builder
+You can now retrieve the payload and the header either as picojson::objects or strings
+
+
 ## Signature algorithms
 As of version 0.2.0 jwt-cpp supports all algorithms defined by the spec. The modular design of jwt-cpp allows one to add additional algorithms without any problems. If you need any feel free to open a pull request.
 For the sake of completeness, here is a list of all supported algorithms:

@@ -1347,6 +1347,48 @@ namespace jwt {
 		 */
 		builder& set_id(const std::string& str) { return set_payload_claim("jti", claim(str)); }
 
+        /**
+         * Retrieve the header as an object
+         * \return header claims as a picojson::object
+         */
+        picojson::object get_header() const {
+            picojson::object obj_header;
+            for (auto& e : header_claims) {
+                obj_header[e.first] = e.second.to_json();
+            }
+            return obj_header;
+        }
+        
+        /**
+         * Retrieve the payload as an object
+         * \return payload claims as a picojson::object
+         */
+        picojson::object get_payload() const {
+            picojson::object obj_payload;
+            for (auto& e : payload_claims) {
+                obj_payload.insert({ e.first, e.second.to_json() });
+            }
+            return obj_payload;
+        }
+
+        /**
+         * Retrieve the header as a string (in JSON)
+         * \return header claims as JSON
+         */
+        std::string get_header_string() const {
+            picojson::object obj_header(get_header());
+            return picojson::value(obj_header).serialize();
+        }
+        
+        /**
+         * Retrieve the payload as a string (in JSON)
+         * \return payload claims as JSON
+         */
+        std::string get_payload_string() const {
+            picojson::object obj_payload(get_payload());
+            return picojson::value(obj_payload).serialize();
+        }
+
 		/**
 		 * Sign token and return result
 		 * \param algo Instance of an algorithm to sign the token with
@@ -1356,15 +1398,15 @@ namespace jwt {
 		 */
 		template<typename T>
         std::string sign(const T& algo, const std::string& data="", bool detached=false) const {
-			picojson::object obj_header;
+			picojson::object obj_header(get_header());
 			obj_header["alg"] = picojson::value(algo.name());
-			for (auto& e : header_claims) {
-				obj_header[e.first] = e.second.to_json();
-			}
-			picojson::object obj_payload;
-			for (auto& e : payload_claims) {
-				obj_payload.insert({ e.first, e.second.to_json() });
-			}
+//            for (auto& e : header_claims) {
+//                obj_header[e.first] = e.second.to_json();
+//            }
+			picojson::object obj_payload(get_payload());
+//            for (auto& e : payload_claims) {
+//                obj_payload.insert({ e.first, e.second.to_json() });
+//            }
 
 			auto encode = [](const std::string& data) {
 				auto base = base::encode<alphabet::base64url>(data);
@@ -1386,7 +1428,7 @@ namespace jwt {
                 token = header + "." + payload + "." + sig;
             return token;
 		}
-	};
+    };
 
 	/**
 	 * Verifier class used to check if a decoded token contains all claims required by your application and has a valid signature.
