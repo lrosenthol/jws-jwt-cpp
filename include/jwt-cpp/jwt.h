@@ -1398,15 +1398,10 @@ namespace jwt {
 		 */
 		template<typename T>
         std::string sign(const T& algo, const std::string& data="", bool detached=false) const {
-			picojson::object obj_header(get_header());
-			obj_header["alg"] = picojson::value(algo.name());
-//            for (auto& e : header_claims) {
-//                obj_header[e.first] = e.second.to_json();
-//            }
+            // NOTE: we handle the header & payload this way to keep the method const!
+            picojson::object obj_header(get_header());
+            obj_header["alg"] = picojson::value(algo.name());
 			picojson::object obj_payload(get_payload());
-//            for (auto& e : payload_claims) {
-//                obj_payload.insert({ e.first, e.second.to_json() });
-//            }
 
 			auto encode = [](const std::string& data) {
 				auto base = base::encode<alphabet::base64url>(data);
