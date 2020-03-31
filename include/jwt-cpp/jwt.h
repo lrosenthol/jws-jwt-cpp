@@ -11,6 +11,7 @@
 #include <openssl/pem.h>
 #include <openssl/ec.h>
 #include <openssl/err.h>
+#include <openssl/pkcs12.h>
 
 //If openssl version less than 1.1
 #if OPENSSL_VERSION_NUMBER < 269484032
@@ -73,7 +74,22 @@ namespace jwt {
 
 	namespace helper {
 		inline
-		std::string extract_pubkey_from_cert(const std::string& certstr, const std::string& pw = "") {
+        std::string HexString(const unsigned char *str, size_t len, size_t maxlen=0)
+        {
+            std::string buf;
+            for(size_t i = 0; i < len; i ++) {
+                if(maxlen > 0 && ((size_t)buf.length() + 3 > maxlen))
+                    break;
+                
+                boost::format    f("%|02X| ");
+                f % (int)(str[i]);
+                buf += f.str();
+            }
+            return buf;
+        }
+
+		inline
+        std::string extract_pubkey_from_cert(const std::string& certstr, const std::string& pw = "") {
 			// TODO: Cannot find the exact version this change happended
 #if OPENSSL_VERSION_NUMBER <= 0x1000114fL
 			std::unique_ptr<BIO, decltype(&BIO_free_all)> certbio(BIO_new_mem_buf(const_cast<char*>(certstr.data()), certstr.size()), BIO_free_all);
@@ -115,11 +131,53 @@ namespace jwt {
 		inline
 		std::shared_ptr<EVP_PKEY> load_private_key_from_string(const std::string& key, const std::string& password = "") {
 			std::unique_ptr<BIO, decltype(&BIO_free_all)> privkey_bio(BIO_new(BIO_s_mem()), BIO_free_all);
+#ifdef _DEBUG
+            std::cout << "Key Size :" << key.size() << std::endl;
+            std::cout << "Key Data :" << HexString((const unsigned char *)key.data(), key.size(), 100) << std::endl;
+#endif
 			if ((size_t)BIO_write(privkey_bio.get(), key.data(), key.size()) != key.size())
 				throw rsa_exception("failed to load private key: bio_write failed");
+#ifdef _DEBUG
+            {
+            char buf[4096];
+            BIO_read(privkey_bio.get(), buf, 128);
+            std::cout << "PrivKey Data :" << HexString((const unsigned char *)buf, key.size(), 100) << std::endl;
+            }
+#endif
 			std::shared_ptr<EVP_PKEY> pkey(PEM_read_bio_PrivateKey(privkey_bio.get(), nullptr, nullptr, const_cast<char*>(password.c_str())), EVP_PKEY_free);
-			if (!pkey)
-				throw rsa_exception("failed to load private key: PEM_read_bio_PrivateKey failed");
+            if (!pkey) {
+                // We MUST rewrite the BIO as the previous call modified it!
+                if ((size_t)BIO_write(privkey_bio.get(), key.data(), key.size()) != key.size())
+                    throw rsa_exception("failed to load private key: bio_write failed");
+#ifdef _DEBUG
+                {
+                    char buf[4096];
+                    BIO_read(privkey_bio.get(), buf, 128);
+                    std::cout << "PrivKey Data :" << HexString((const unsigned char *)buf, key.size(), 100) << std::endl;
+                }
+#endif
+                // Try loading it as a binary/PKCS12 (.p12/PFX) file
+                PKCS12* p12 = d2i_PKCS12_bio(privkey_bio.get(), nullptr);
+                if ( p12 ) {
+                    EVP_PKEY *ppkey = NULL;
+                    X509 *cert = NULL;
+                    STACK_OF(X509) *ca = NULL;
+                    if (!PKCS12_parse(p12, const_cast<char*>(password.c_str()), &ppkey, &cert, &ca)) {
+                        throw rsa_exception("failed to parse PKCS12: PKCS12_parse failed");
+                    } else {
+                        pkey.reset( ppkey, EVP_PKEY_free );
+                    }
+                } else {
+#ifdef _DEBUG
+                    std::unique_ptr<BIO, decltype(&BIO_free_all)> err_bio(BIO_new(BIO_s_mem()), BIO_free_all);
+                    ERR_print_errors(err_bio.get());
+                    char buf[4096];
+                    int n = BIO_read(err_bio.get(), buf, 4096);
+                    std::cout << std::string(buf,n) << std::endl;
+#endif
+                    throw rsa_exception("failed to load private key: PEM_read_bio_PrivateKey & d2i_PKCS12_bio failed");
+                }
+            }
 			return pkey;
 		}
 	}
