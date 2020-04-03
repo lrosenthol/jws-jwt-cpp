@@ -117,7 +117,15 @@ namespace jwt {
 				auto epkey = helper::extract_pubkey_from_cert(key, password);
 				if ((size_t)BIO_write(pubkey_bio.get(), epkey.data(), epkey.size()) != epkey.size())
 					throw rsa_exception("failed to load public key: bio_write failed");
-			} else {
+            } else if(key.substr(0, 8) == "ssh-rsa ") {
+                auto sp = key.rfind(" ");
+                std::string newKey("-----BEGIN PUBLIC KEY-----\n");
+                newKey += key.substr(8, sp-8);
+                newKey += "\n-----END PUBLIC KEY-----\n";
+                std::cout << newKey << std::endl;
+                if ((size_t)BIO_write(pubkey_bio.get(), newKey.data(), newKey.size()) != newKey.size())
+                    throw rsa_exception("failed to load public key: bio_write failed");
+            } else {
 				if ((size_t)BIO_write(pubkey_bio.get(), key.data(), key.size()) != key.size())
 					throw rsa_exception("failed to load public key: bio_write failed");
 			}
@@ -137,13 +145,6 @@ namespace jwt {
 #endif
 			if ((size_t)BIO_write(privkey_bio.get(), key.data(), key.size()) != key.size())
 				throw rsa_exception("failed to load private key: bio_write failed");
-#ifdef _DEBUG
-            {
-            char buf[4096];
-            BIO_read(privkey_bio.get(), buf, 128);
-            std::cout << "PrivKey Data :" << HexString((const unsigned char *)buf, key.size(), 100) << std::endl;
-            }
-#endif
 			std::shared_ptr<EVP_PKEY> pkey(PEM_read_bio_PrivateKey(privkey_bio.get(), nullptr, nullptr, const_cast<char*>(password.c_str())), EVP_PKEY_free);
             if (!pkey) {
                 // We MUST rewrite the BIO as the previous call modified it!
