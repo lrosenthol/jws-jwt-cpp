@@ -131,7 +131,14 @@ namespace jwt {
 			}
 			
 			std::shared_ptr<EVP_PKEY> pkey(PEM_read_bio_PUBKEY(pubkey_bio.get(), nullptr, nullptr, (void*)password.c_str()), EVP_PKEY_free);
-			if (!pkey)
+            if (!pkey) {
+#if 1
+            std::shared_ptr<RSA> public_key(PEM_read_bio_RSA_PUBKEY(pubkey_bio.get(), nullptr, nullptr, (void*)password.c_str()), RSA_free);
+                if ( !public_key ) {
+                    
+                }
+#endif
+            }
 				throw rsa_exception("failed to load public key: PEM_read_bio_PUBKEY failed:" + std::string(ERR_error_string(ERR_get_error(), NULL)));
 			return pkey;
 		}
